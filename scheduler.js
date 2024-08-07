@@ -33,7 +33,8 @@ function generateSchedule(data) {
 
   // Load people data
   const people = data.map((row) => ({
-    name: row["name"],
+    name: row["Name"],
+    region: row["Region"],
     can_do_tl: row["can_do_tl"] === "Y",
     can_do_dm: row["can_do_dm"] === "Y",
   }));
@@ -172,6 +173,7 @@ function generateSchedule(data) {
 
     return {
       Name: person.name,
+      Region: person.region,
       "Can Do TL": person.can_do_tl ? "Y" : "N",
       "Can Do DM": person.can_do_dm ? "Y" : "N",
       "Total TL Shifts": tlData.total,

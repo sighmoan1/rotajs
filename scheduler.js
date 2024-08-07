@@ -17,9 +17,18 @@ function handleFile(event) {
 
 function generateSchedule(data) {
   // Constants
-  const DAYS = 366;
   const TL_SHIFTS_PER_DAY = 2;
   const DM_SHIFTS_PER_DAY = 2;
+
+  // Get the start date from the input
+  const startDateInput = document.getElementById("start-date").value;
+  const startDate = new Date(startDateInput);
+
+  const endDate = new Date(startDate);
+  endDate.setFullYear(startDate.getFullYear() + 1);
+
+  // Calculate the number of days between start and end dates
+  const days = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
 
   // Load people data
   const people = data.map((row) => ({
@@ -78,45 +87,109 @@ function generateSchedule(data) {
 
   const { schedule: tlSchedule, shiftsPerPerson: tlShifts } = allocateShifts(
     people,
-    DAYS,
+    days,
     TL_SHIFTS_PER_DAY,
     "can_do_tl",
     ["TL1", "TL2"]
   );
   const { schedule: fullSchedule, shiftsPerPerson: dmShifts } =
-    allocateDmShifts(people, DAYS, tlSchedule);
+    allocateDmShifts(people, days, tlSchedule);
 
-  const scheduleData = fullSchedule.map((shifts, day) => ({
-    Day: day + 1,
-    "TL Shift 1": shifts["TL1"],
-    "TL Shift 2": shifts["TL2"],
-    "DM Shift 1": shifts["DM1"] || "",
-    "DM Shift 2": shifts["DM2"] || "",
-  }));
+  // Create schedule data with formatted dates
+  const dateFormatter = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
 
-  const summaryData = people.map((person) => ({
-    Name: person.name,
-    "Can Do TL": person.can_do_tl,
-    "Can Do DM": person.can_do_dm,
-    "Total TL Shifts": tlShifts[person.name] || 0,
-    "Total DM Shifts": dmShifts[person.name] || 0,
-    "Total Shifts": (tlShifts[person.name] || 0) + (dmShifts[person.name] || 0),
-  }));
+  const scheduleData = fullSchedule.map((shifts, day) => {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + day);
+    const formattedDate = dateFormatter.format(currentDate);
+    return {
+      Day: formattedDate,
+      "TL Shift 1": shifts["TL1"],
+      "TL Shift 2": shifts["TL2"],
+      "DM Shift 1": shifts["DM1"] || "",
+      "DM Shift 2": shifts["DM2"] || "",
+    };
+  });
 
-  // Display tables
-  displayTable("schedule-table", scheduleData);
-  displayTable("summary-table", summaryData);
+  // Split scheduleData into weeks, starting each week on a Monday
+  const weeksData = [];
+  let currentWeek = [];
+  let weekStart = new Date(startDate);
+
+  scheduleData.forEach((entry, index) => {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + index);
+
+    if (currentDate.getDay() === 1 && currentWeek.length > 0) {
+      // Push the current week and start a new week
+      weeksData.push({ weekStart: weekStart, weekData: currentWeek });
+      currentWeek = [];
+      weekStart = currentDate;
+    }
+
+    currentWeek.push(entry);
+
+    // Handle the last partial week
+    if (index === scheduleData.length - 1 && currentWeek.length > 0) {
+      weeksData.push({ weekStart: weekStart, weekData: currentWeek });
+    }
+  });
+
+  // Display each week's schedule separately
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = ""; // Clear previous results
+
+  weeksData.forEach((week, index) => {
+    const weekStartDate = week.weekStart;
+    const weekEndDate = new Date(weekStartDate);
+    weekEndDate.setDate(weekEndDate.getDate() + week.weekData.length - 1);
+
+    const weekTitle = document.createElement("h3");
+    weekTitle.textContent = `Week ${
+      index + 1
+    } (${weekStartDate.toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })} - ${weekEndDate.toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })})`;
+    resultsDiv.appendChild(weekTitle);
+
+    const weekTable = document.createElement("table");
+    displayTable(weekTable, week.weekData);
+    resultsDiv.appendChild(weekTable);
+  });
 
   // Create download button
   const downloadBtn = document.createElement("button");
   downloadBtn.textContent = "Download Schedule";
   downloadBtn.onclick = function () {
     const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.json_to_sheet(scheduleData);
-    XLSX.utils.book_append_sheet(wb, ws1, "Schedule");
 
-    const ws2 = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+    weeksData.forEach((week, index) => {
+      const ws = XLSX.utils.json_to_sheet(week.weekData);
+      XLSX.utils.book_append_sheet(wb, ws, `Week ${index + 1}`);
+    });
+
+    const summaryData = people.map((person) => ({
+      Name: person.name,
+      "Can Do TL": person.can_do_tl,
+      "Can Do DM": person.can_do_dm,
+      "Total TL Shifts": tlShifts[person.name] || 0,
+      "Total DM Shifts": dmShifts[person.name] || 0,
+      "Total Shifts":
+        (tlShifts[person.name] || 0) + (dmShifts[person.name] || 0),
+    }));
+    const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
 
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([wbout], { type: "application/octet-stream" });
@@ -128,15 +201,14 @@ function generateSchedule(data) {
     window.URL.revokeObjectURL(url);
   };
 
-  document.getElementById("results").appendChild(downloadBtn);
+  resultsDiv.appendChild(downloadBtn);
 }
 
-function displayTable(tableId, data) {
-  const table = document.getElementById(tableId);
-  table.innerHTML = "";
+function displayTable(tableElement, data) {
+  tableElement.innerHTML = "";
 
   if (data.length === 0) {
-    table.innerHTML = "<p>No data available</p>";
+    tableElement.innerHTML = "<p>No data available</p>";
     return;
   }
 
@@ -162,6 +234,6 @@ function displayTable(tableId, data) {
     tbody.appendChild(tr);
   });
 
-  table.appendChild(thead);
-  table.appendChild(tbody);
+  tableElement.appendChild(thead);
+  tableElement.appendChild(tbody);
 }

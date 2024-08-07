@@ -6,6 +6,7 @@
     <title>Schedule Generator</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.2/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/date-fns/2.27.0/date-fns.min.js"></script>
   </head>
 
   <body>
@@ -21,29 +22,37 @@
           <div class="not-sidebar">
             <main role="main">
               <h1>Schedule Generator</h1>
-              <p>You need to provide a .csv file in a format like</p>
-              <p></p>
+              <p>
+                Select a start date and provide a .csv file in a format like:
+              </p>
               <table>
-                <tr>
-                  <thead>
+                <thead>
+                  <tr>
                     <th>name</th>
                     <th>can_do_dm</th>
                     <th>can_do_tl</th>
-                  </thead>
-                </tr>
-                <tr>
-                  <td>Alice</td>
-                  <td>Y</td>
-                  <td>N</td>
-                </tr>
-                <tr>
-                  <td>Bob</td>
-                  <td>Y</td>
-                  <td>Y</td>
-                </tr>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Alice</td>
+                    <td>Y</td>
+                    <td>N</td>
+                  </tr>
+                  <tr>
+                    <td>Bob</td>
+                    <td>Y</td>
+                    <td>Y</td>
+                  </tr>
+                </tbody>
               </table>
               <p>
-                This all runs in your browser, your file isn't uploaded anywhere
+                This all runs in your browser; your file isn't uploaded
+                anywhere.
+              </p>
+              <p>
+                Start Date:
+                <input type="date" id="start-date" value="2024-11-01" />
               </p>
               <p>
                 <input type="file" accept=".csv" onchange="handleFile(event)" />

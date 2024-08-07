@@ -65,10 +65,11 @@ function generateSchedule(data) {
       const dayOfWeek = currentDate.getDay();
 
       for (let shift = 0; shift < TL_SHIFTS_PER_DAY; shift++) {
-        const person = eligibleTLs[tlIndex % eligibleTLs.length];
-        schedule[day][`TL${shift + 1}`] = person;
-        shiftsPerPerson[person].total++;
-        shiftsPerPerson[person].weekdays[dayOfWeek]++;
+        const personName = eligibleTLs[tlIndex % eligibleTLs.length];
+        const person = people.find((p) => p.name === personName);
+        schedule[day][`TL${shift + 1}`] = `${person.name} (${person.region})`;
+        shiftsPerPerson[personName].total++;
+        shiftsPerPerson[personName].weekdays[dayOfWeek]++;
         tlIndex++;
       }
     }
@@ -99,20 +100,22 @@ function generateSchedule(data) {
 
       // Allocate DM1 and DM2 for each day
       for (let shift = 0; shift < DM_SHIFTS_PER_DAY; shift++) {
-        const person = nonTLDMs[dmIndex % nonTLDMs.length];
-        schedule[day][`DM${shift + 1}`] = person;
-        shiftsPerPerson[person].total++;
-        shiftsPerPerson[person].weekdays[dayOfWeek]++;
+        const personName = nonTLDMs[dmIndex % nonTLDMs.length];
+        const person = people.find((p) => p.name === personName);
+        schedule[day][`DM${shift + 1}`] = `${person.name} (${person.region})`;
+        shiftsPerPerson[personName].total++;
+        shiftsPerPerson[personName].weekdays[dayOfWeek]++;
         dmIndex++;
       }
 
       // Allocate DM3 and DM4 for weekends
       if (dayOfWeek === 6 || dayOfWeek === 0) {
         for (let shift = 0; shift < ADDITIONAL_DM_SHIFTS_WEEKEND; shift++) {
-          const person = eligibleDMs[dmWeekendIndex % eligibleDMs.length];
-          schedule[day][`DM${shift + 3}`] = person;
-          shiftsPerPerson[person].total++;
-          shiftsPerPerson[person].weekdays[dayOfWeek]++;
+          const personName = eligibleDMs[dmWeekendIndex % eligibleDMs.length];
+          const person = people.find((p) => p.name === personName);
+          schedule[day][`DM${shift + 3}`] = `${person.name} (${person.region})`;
+          shiftsPerPerson[personName].total++;
+          shiftsPerPerson[personName].weekdays[dayOfWeek]++;
           dmWeekendIndex++;
         }
       }

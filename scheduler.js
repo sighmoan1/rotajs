@@ -17,9 +17,18 @@ function handleFile(event) {
 
 function generateSchedule(data) {
   // Constants
-  const DAYS = 366;
+  const DAYS_IN_YEAR = 365; // Considering a non-leap year for simplicity
   const TL_SHIFTS_PER_DAY = 2;
   const DM_SHIFTS_PER_DAY = 2;
+
+  // Get the start date from the input
+  const startDateInput = document.getElementById("start-date").value;
+  const startDate = new Date(startDateInput);
+  const endDate = new Date(startDate);
+  endDate.setFullYear(startDate.getFullYear() + 1);
+
+  // Calculate the number of days between start and end dates
+  const days = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
 
   // Load people data
   const people = data.map((row) => ({
@@ -78,21 +87,34 @@ function generateSchedule(data) {
 
   const { schedule: tlSchedule, shiftsPerPerson: tlShifts } = allocateShifts(
     people,
-    DAYS,
+    days,
     TL_SHIFTS_PER_DAY,
     "can_do_tl",
     ["TL1", "TL2"]
   );
   const { schedule: fullSchedule, shiftsPerPerson: dmShifts } =
-    allocateDmShifts(people, DAYS, tlSchedule);
+    allocateDmShifts(people, days, tlSchedule);
 
-  const scheduleData = fullSchedule.map((shifts, day) => ({
-    Day: day + 1,
-    "TL Shift 1": shifts["TL1"],
-    "TL Shift 2": shifts["TL2"],
-    "DM Shift 1": shifts["DM1"] || "",
-    "DM Shift 2": shifts["DM2"] || "",
-  }));
+  // Create schedule data with formatted dates
+  const dateFormatter = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  const scheduleData = fullSchedule.map((shifts, day) => {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + day);
+    const formattedDate = dateFormatter.format(currentDate);
+    return {
+      Day: formattedDate,
+      "TL Shift 1": shifts["TL1"],
+      "TL Shift 2": shifts["TL2"],
+      "DM Shift 1": shifts["DM1"] || "",
+      "DM Shift 2": shifts["DM2"] || "",
+    };
+  });
 
   const summaryData = people.map((person) => ({
     Name: person.name,

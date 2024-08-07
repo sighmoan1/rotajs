@@ -271,34 +271,70 @@ function displayWeeks(data, container, daysPerWeek) {
 
   while (dayIndex < data.length) {
     const weekStart = new Date(data[dayIndex].Day);
-    const weekEnd = new Date(
-      data[Math.min(dayIndex + daysPerWeek - 1, data.length - 1)].Day
-    );
-    const weekData = [];
 
-    for (
-      let i = 0;
-      i < daysPerWeek && dayIndex < data.length;
-      i++, dayIndex++
-    ) {
-      weekData.push(data[dayIndex]);
+    // If the first day is not Monday, create a short week until Sunday
+    if (weekIndex === 1 && weekStart.getDay() !== 1) {
+      // First week ends on Sunday
+      const firstWeekEndIndex = Math.min(
+        dayIndex + (7 - weekStart.getDay()),
+        data.length - 1
+      );
+      const firstWeekEnd = new Date(data[firstWeekEndIndex].Day);
+      const weekData = [];
+
+      for (
+        ;
+        dayIndex <= firstWeekEndIndex && dayIndex < data.length;
+        dayIndex++
+      ) {
+        weekData.push(data[dayIndex]);
+      }
+
+      const weekTitle = document.createElement("h4");
+      weekTitle.textContent = `Week ${weekIndex} - ${formatDateRange(
+        weekStart,
+        firstWeekEnd
+      )}`;
+      container.appendChild(weekTitle);
+
+      const table = document.createElement("table");
+      displayTable(table, weekData);
+      container.appendChild(table);
+
+      weekIndex++;
+    } else {
+      // All other weeks start on Monday and end on Sunday
+      let weekEndIndex = Math.min(dayIndex + daysPerWeek - 1, data.length - 1);
+      let weekEnd = new Date(data[weekEndIndex].Day);
+      const weekData = [];
+
+      for (; dayIndex <= weekEndIndex && dayIndex < data.length; dayIndex++) {
+        weekData.push(data[dayIndex]);
+      }
+
+      const weekTitle = document.createElement("h4");
+      weekTitle.textContent = `Week ${weekIndex} - ${formatDateRange(
+        weekStart,
+        weekEnd
+      )}`;
+      container.appendChild(weekTitle);
+
+      const table = document.createElement("table");
+      displayTable(table, weekData);
+      container.appendChild(table);
+
+      weekIndex++;
     }
 
-    // Add a title for the week
-    const weekTitle = document.createElement("h4");
-    weekTitle.textContent = `Week ${weekIndex} - ${formatDateRange(
-      weekStart,
-      weekEnd
-    )}`;
-    container.appendChild(weekTitle);
-
-    // Create a table for the week
-    const table = document.createElement("table");
-    displayTable(table, weekData);
-    container.appendChild(table);
-
-    // Move to the next week
-    weekIndex++;
+    // If the week doesn't start on Monday, skip to the next Monday
+    if (weekStart.getDay() !== 1 && dayIndex < data.length) {
+      while (
+        new Date(data[dayIndex].Day).getDay() !== 1 &&
+        dayIndex < data.length
+      ) {
+        dayIndex++;
+      }
+    }
   }
 }
 

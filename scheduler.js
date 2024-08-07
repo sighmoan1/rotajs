@@ -309,4 +309,3 @@ function formatDateRange(start, end) {
     options
   )} to ${end.toLocaleDateString("en-GB", options)}`;
 }
-e;

@@ -17,9 +17,9 @@ function handleFile(event) {
 
 function generateSchedule(data) {
   // Constants
-  const DAYS_IN_YEAR = 365; // Considering a non-leap year for simplicity
   const TL_SHIFTS_PER_DAY = 2;
   const DM_SHIFTS_PER_DAY = 2;
+  const DAYS_PER_WEEK = 7;
 
   // Get the start date from the input
   const startDateInput = document.getElementById("start-date").value;
@@ -103,17 +103,31 @@ function generateSchedule(data) {
     year: "numeric",
   });
 
-  const scheduleData = fullSchedule.map((shifts, day) => {
+  // Group the schedule by month and ensure each week starts on Monday
+  const monthFormatter = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const scheduleDataByMonth = {};
+
+  fullSchedule.forEach((shifts, day) => {
     const currentDate = new Date(startDate);
     currentDate.setDate(startDate.getDate() + day);
     const formattedDate = dateFormatter.format(currentDate);
-    return {
+    const monthKey = monthFormatter.format(currentDate);
+
+    const entry = {
       Day: formattedDate,
       "TL Shift 1": shifts["TL1"],
       "TL Shift 2": shifts["TL2"],
       "DM Shift 1": shifts["DM1"] || "",
       "DM Shift 2": shifts["DM2"] || "",
     };
+
+    if (!scheduleDataByMonth[monthKey]) {
+      scheduleDataByMonth[monthKey] = [];
+    }
+    scheduleDataByMonth[monthKey].push(entry);
   });
 
   const summaryData = people.map((person) => ({
@@ -125,16 +139,71 @@ function generateSchedule(data) {
     "Total Shifts": (tlShifts[person.name] || 0) + (dmShifts[person.name] || 0),
   }));
 
-  // Display tables
-  displayTable("schedule-table", scheduleData);
+  // Display the summary table
   displayTable("summary-table", summaryData);
+
+  // Create monthly schedule sections with week display
+  const scheduleContainer = document.getElementById("schedule-table");
+  scheduleContainer.innerHTML = "";
+
+  let monthKeys = Object.keys(scheduleDataByMonth);
+  let currentMonthIndex = 0;
+
+  function renderMonth(monthIndex) {
+    scheduleContainer.innerHTML = "";
+    const monthKey = monthKeys[monthIndex];
+    const monthData = scheduleDataByMonth[monthKey];
+
+    const monthSection = document.createElement("div");
+    monthSection.classList.add("month-section");
+
+    const monthTitle = document.createElement("h3");
+    monthTitle.textContent = monthKey;
+    monthSection.appendChild(monthTitle);
+
+    const paginationContainer = document.createElement("div");
+    paginationContainer.classList.add("pagination-container");
+    monthSection.appendChild(paginationContainer);
+
+    scheduleContainer.appendChild(monthSection);
+
+    // Display weeks within the month
+    displayWeeks(monthData, paginationContainer, DAYS_PER_WEEK);
+
+    // Add month navigation controls
+    const monthControls = document.createElement("div");
+    monthControls.classList.add("month-controls");
+
+    const prevMonthButton = document.createElement("button");
+    prevMonthButton.textContent = "Previous Month";
+    prevMonthButton.disabled = monthIndex === 0;
+    prevMonthButton.onclick = () => {
+      currentMonthIndex = Math.max(0, currentMonthIndex - 1);
+      renderMonth(currentMonthIndex);
+    };
+
+    const nextMonthButton = document.createElement("button");
+    nextMonthButton.textContent = "Next Month";
+    nextMonthButton.disabled = monthIndex === monthKeys.length - 1;
+    nextMonthButton.onclick = () => {
+      currentMonthIndex = Math.min(monthKeys.length - 1, currentMonthIndex + 1);
+      renderMonth(currentMonthIndex);
+    };
+
+    monthControls.appendChild(prevMonthButton);
+    monthControls.appendChild(nextMonthButton);
+
+    scheduleContainer.appendChild(monthControls);
+  }
+
+  renderMonth(currentMonthIndex);
 
   // Create download button
   const downloadBtn = document.createElement("button");
   downloadBtn.textContent = "Download Schedule";
   downloadBtn.onclick = function () {
     const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.json_to_sheet(scheduleData);
+    const ws1 = XLSX.utils.json_to_sheet(fullSchedule);
     XLSX.utils.book_append_sheet(wb, ws1, "Schedule");
 
     const ws2 = XLSX.utils.json_to_sheet(summaryData);
@@ -153,12 +222,14 @@ function generateSchedule(data) {
   document.getElementById("results").appendChild(downloadBtn);
 }
 
-function displayTable(tableId, data) {
-  const table = document.getElementById(tableId);
-  table.innerHTML = "";
+function displayTable(container, data) {
+  if (typeof container === "string") {
+    container = document.getElementById(container);
+  }
+  container.innerHTML = "";
 
   if (data.length === 0) {
-    table.innerHTML = "<p>No data available</p>";
+    container.innerHTML = "<p>No data available</p>";
     return;
   }
 
@@ -184,6 +255,58 @@ function displayTable(tableId, data) {
     tbody.appendChild(tr);
   });
 
-  table.appendChild(thead);
-  table.appendChild(tbody);
+  container.appendChild(thead);
+  container.appendChild(tbody);
 }
+
+function displayWeeks(data, container, daysPerWeek) {
+  let weekIndex = 1;
+  let dayIndex = 0;
+
+  // Define the monthFormatter inside the function or pass it as an argument
+  const monthFormatter = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  while (dayIndex < data.length) {
+    const weekStart = new Date(data[dayIndex].Day);
+    const weekEnd = new Date(
+      data[Math.min(dayIndex + daysPerWeek - 1, data.length - 1)].Day
+    );
+    const weekData = [];
+
+    for (
+      let i = 0;
+      i < daysPerWeek && dayIndex < data.length;
+      i++, dayIndex++
+    ) {
+      weekData.push(data[dayIndex]);
+    }
+
+    // Add a title for the week
+    const weekTitle = document.createElement("h4");
+    weekTitle.textContent = `Week ${weekIndex} - ${formatDateRange(
+      weekStart,
+      weekEnd
+    )}`;
+    container.appendChild(weekTitle);
+
+    // Create a table for the week
+    const table = document.createElement("table");
+    displayTable(table, weekData);
+    container.appendChild(table);
+
+    // Move to the next week
+    weekIndex++;
+  }
+}
+
+function formatDateRange(start, end) {
+  const options = { day: "2-digit", month: "short", year: "numeric" };
+  return `${start.toLocaleDateString(
+    "en-GB",
+    options
+  )} to ${end.toLocaleDateString("en-GB", options)}`;
+}
+e;

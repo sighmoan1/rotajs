@@ -192,6 +192,15 @@ function generateSchedule(data) {
     };
   });
 
+  // Sort the summary data by region and then by name
+  summaryData.sort((a, b) => {
+    if (a.Region < b.Region) return -1;
+    if (a.Region > b.Region) return 1;
+    if (a.Name < b.Name) return -1;
+    if (a.Name > b.Name) return 1;
+    return 0;
+  });
+
   // Display the summary table
   displayTable("summary-table", summaryData);
 

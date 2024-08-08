@@ -58,7 +58,7 @@
                 <input type="date" id="start-date" value="2024-11-01" />
               </p>
               <p>
-                <input type="file" accept=".csv" onchange="handleFile(event)" />
+                <input type="file" id="file-input" accept=".csv" />
               </p>
 
               <div id="results">
@@ -74,5 +74,5 @@
       </div>
     </div>
   </body>
-  <script src="scheduler.js"></script>
+  <script type="module" src="./main.js"></script>
 </html>

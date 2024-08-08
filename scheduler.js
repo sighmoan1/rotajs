@@ -182,13 +182,13 @@ function generateSchedule(data) {
       "Total TL Shifts": tlData.total,
       "Total DM Shifts": dmData.total,
       "Total Shifts": tlData.total + dmData.total,
-      "Sunday Shifts": tlData.weekdays[0] + dmData.weekdays[0],
       "Monday Shifts": tlData.weekdays[1] + dmData.weekdays[1],
       "Tuesday Shifts": tlData.weekdays[2] + dmData.weekdays[2],
       "Wednesday Shifts": tlData.weekdays[3] + dmData.weekdays[3],
       "Thursday Shifts": tlData.weekdays[4] + dmData.weekdays[4],
       "Friday Shifts": tlData.weekdays[5] + dmData.weekdays[5],
       "Saturday Shifts": tlData.weekdays[6] + dmData.weekdays[6],
+      "Sunday Shifts": tlData.weekdays[0] + dmData.weekdays[0],
     };
   });
 

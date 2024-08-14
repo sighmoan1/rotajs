@@ -57,11 +57,133 @@
                 Start Date:
                 <input type="date" id="start-date" value="2024-11-01" />
               </p>
+              <details>
+                <summary>DM Shifts Per Day</summary>
+                <h3>DM Shifts Per Day:</h3>
+                <label for="dm-shifts-monday">Monday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-monday"
+                  name="dm-shifts-monday"
+                  value="8"
+                />
+
+                <label for="dm-shifts-tuesday">Tuesday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-tuesday"
+                  name="dm-shifts-tuesday"
+                  value="8"
+                />
+
+                <label for="dm-shifts-wednesday">Wednesday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-wednesday"
+                  name="dm-shifts-wednesday"
+                  value="8"
+                />
+
+                <label for="dm-shifts-thursday">Thursday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-thursday"
+                  name="dm-shifts-thursday"
+                  value="8"
+                />
+
+                <label for="dm-shifts-friday">Friday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-friday"
+                  name="dm-shifts-friday"
+                  value="8"
+                />
+
+                <label for="dm-shifts-saturday">Saturday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-saturday"
+                  name="dm-shifts-saturday"
+                  value="8"
+                />
+
+                <label for="dm-shifts-sunday">Sunday:</label>
+                <input
+                  type="number"
+                  id="dm-shifts-sunday"
+                  name="dm-shifts-sunday"
+                  value="8"
+                />
+              </details>
+              <details>
+                <summary>TL shifts</summary>
+                <h3>TL Shifts Per Day:</h3>
+                <label for="tl-shifts-monday">Monday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-monday"
+                  name="tl-shifts-monday"
+                  value="0"
+                />
+
+                <label for="tl-shifts-tuesday">Tuesday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-tuesday"
+                  name="tl-shifts-tuesday"
+                  value="0"
+                />
+
+                <label for="tl-shifts-wednesday">Wednesday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-wednesday"
+                  name="tl-shifts-wednesday"
+                  value="0"
+                />
+
+                <label for="tl-shifts-thursday">Thursday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-thursday"
+                  name="tl-shifts-thursday"
+                  value="0"
+                />
+
+                <label for="tl-shifts-friday">Friday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-friday"
+                  name="tl-shifts-friday"
+                  value="0"
+                />
+
+                <label for="tl-shifts-saturday">Saturday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-saturday"
+                  name="tl-shifts-saturday"
+                  value="0"
+                />
+
+                <label for="tl-shifts-sunday">Sunday:</label>
+                <input
+                  type="number"
+                  id="tl-shifts-sunday"
+                  name="tl-shifts-sunday"
+                  value="0"
+                />
+              </details>
               <p>
                 <input type="file" id="file-input" accept=".csv" />
               </p>
-
+              <button id="generate-schedule">Generate Schedule</button>
               <div id="results">
+                <div id="rules-container">
+                  <h2>Rules Applied</h2>
+                  <ul id="rules-list"></ul>
+                </div>
                 <h2>Shift Distribution</h2>
                 <table id="summary-table"></table>
                 <br />

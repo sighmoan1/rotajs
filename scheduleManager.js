@@ -1,13 +1,25 @@
-// scheduleManager.js
-
+// Import necessary modules
 import { displayTable, displayWeeks } from "./uiRenderer.js";
+import { config } from "./config.js";
 
+// Utility function to map day index to day name
+function getDayName(index) {
+  const dayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  return dayNames[index];
+}
+
+// Function to generate and display the schedule
 export function generateSchedule(data) {
-  // Constants
-  const TL_SHIFTS_PER_DAY = 2;
-  const DM_SHIFTS_PER_DAY = 2;
-  const ADDITIONAL_DM_SHIFTS_WEEKEND = 2; // Additional DM shifts on Saturday and Sunday
-  const DAYS_PER_WEEK = 7;
+  // Extract configuration parameters
+  const { daysPerWeek } = config;
 
   // Get the start date from the input
   const startDateInput = document.getElementById("start-date").value;
@@ -22,181 +34,131 @@ export function generateSchedule(data) {
   const people = data.map((row) => ({
     name: row["Name"],
     region: row["Region"],
-    can_do_tl: row["can_do_tl"] === "Y",
-    can_do_dm: row["can_do_dm"] === "Y",
-    total_tl_shifts: 0, // Separate TL and DM shifts
-    total_dm_shifts: 0,
-    weekday_shifts: Array(7).fill(0), // Array to count shifts per day of the week
+    canDoDM: row["can_do_dm"] === "Y",
+    canDoTL: row["can_do_tl"] === "Y",
+    totalDMShifts: 0,
+    totalTLShifts: 0,
+    weekday_shifts: Array(7).fill(0),
   }));
 
   // Initialize schedule
-  const schedule = Array.from({ length: days }, () => ({
-    TL1: null,
-    TL2: null,
-    DM1: null,
-    DM2: null,
-    DM3: null,
-    DM4: null,
-  }));
+  const schedule = initializeSchedule(startDate, days);
 
-  // Utility function to find a person who can take the shift
-  function findAvailablePerson(currentDay, roleType, avoidRegions) {
-    const eligiblePeople = people.filter((person) => {
-      if (roleType === "TL" && !person.can_do_tl) return false;
-      if (roleType === "DM" && !person.can_do_dm) return false;
-      if (avoidRegions.includes(person.region)) return false;
-      return true;
-    });
+  // Allocate shifts
+  allocateShifts(schedule, startDate, people);
 
-    eligiblePeople.sort(
-      (a, b) =>
-        a.total_tl_shifts +
-        a.total_dm_shifts -
-        (b.total_tl_shifts + b.total_dm_shifts)
-    );
+  // Display the schedule using existing logic
+  displayGeneratedSchedule(schedule, startDate, people, daysPerWeek);
 
-    // Return a person who isn't scheduled for the same type of role today
-    for (let person of eligiblePeople) {
-      if (
+  // Display the rules applied
+  displayRulesApplied();
+}
+
+// Function to initialize the schedule based on shifts per day
+function initializeSchedule(startDate, days) {
+  return Array.from({ length: days }, (_, dayIndex) => {
+    const currentDate = new Date(startDate);
+    currentDate.setDate(startDate.getDate() + dayIndex);
+
+    const dayOfWeek = getDayName(currentDate.getDay());
+
+    return {
+      DM: Array(config.shiftsPerDay[dayOfWeek].DM).fill(null),
+      TL: Array(config.shiftsPerDay[dayOfWeek].TL).fill(null),
+    };
+  });
+}
+
+// Utility function to find an available person for a shift
+function findAvailablePerson(
+  currentDay,
+  roleType,
+  avoidRegions,
+  schedule,
+  people
+) {
+  const eligiblePeople = people.filter((person) => {
+    if (roleType === "DM" && !person.canDoDM) return false;
+    if (roleType === "TL" && !person.canDoTL) return false;
+    if (avoidRegions.includes(person.region)) return false;
+    return true;
+  });
+
+  eligiblePeople.sort(
+    (a, b) => a[`total${roleType}Shifts`] - b[`total${roleType}Shifts`]
+  );
+
+  return (
+    eligiblePeople.find(
+      (person) =>
         !Object.values(schedule[currentDay]).some(
           (shift) => shift && shift.includes(person.name)
         )
-      ) {
-        return person;
-      }
-    }
-    return null;
-  }
+    ) || null
+  );
+}
 
-  function allocateTlShifts(schedule) {
-    for (let day = 0; day < schedule.length; day++) {
-      for (let shift = 0; shift < TL_SHIFTS_PER_DAY; shift++) {
-        const avoidRegions = Object.values(schedule[day])
-          .filter((shift) => shift)
-          .map((shift) => shift.split("(")[1].replace(")", "").trim());
+// Function to allocate shifts for a single day
+function allocateShiftsForDay(schedule, day, startDate, people) {
+  const currentDate = new Date(startDate);
+  currentDate.setDate(startDate.getDate() + day);
+  const dayOfWeekIndex = currentDate.getDay();
+  const dayOfWeek = getDayName(dayOfWeekIndex);
 
-        const person = findAvailablePerson(day, "TL", avoidRegions);
-        if (person) {
-          schedule[day][`TL${shift + 1}`] = `${person.name} (${person.region})`;
-          person.total_tl_shifts++; // Increment TL-specific shifts
-          const currentDate = new Date(startDate);
-          currentDate.setDate(startDate.getDate() + day);
-          person.weekday_shifts[currentDate.getDay()]++;
+  const allocateShift = (role) => {
+    const avoidRegions = [];
+
+    // Loop through the number of shifts needed for that day
+    for (let i = 0; i < config.shiftsPerDay[dayOfWeek][role]; i++) {
+      // First, try to allocate from unallocated regions
+      let nextPerson = findAvailablePerson(
+        day,
+        role,
+        avoidRegions,
+        schedule,
+        people
+      );
+      if (nextPerson) {
+        assignShift(schedule, day, role, nextPerson, dayOfWeekIndex);
+        avoidRegions.push(nextPerson.region);
+      } else {
+        // If no unallocated regions left, allocate from regions with the fewest shifts
+        nextPerson = findAvailablePerson(day, role, [], schedule, people);
+        if (nextPerson) {
+          assignShift(schedule, day, role, nextPerson, dayOfWeekIndex);
         }
       }
     }
+  };
+
+  // Allocate TL shifts first if they exist
+  if (config.shiftsPerDay[dayOfWeek].TL > 0) {
+    allocateShift("TL");
   }
 
-  function allocateDmShifts(schedule) {
-    for (let day = 0; day < schedule.length; day++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + day);
-      const dayOfWeek = currentDate.getDay();
+  // Allocate DM shifts
+  allocateShift("DM");
+}
 
-      for (let shift = 0; shift < DM_SHIFTS_PER_DAY; shift++) {
-        const avoidRegions = Object.values(schedule[day])
-          .filter((shift) => shift)
-          .map((shift) => shift.split("(")[1].replace(")", "").trim());
-
-        const person = findAvailablePerson(day, "DM", avoidRegions);
-        if (person) {
-          schedule[day][`DM${shift + 1}`] = `${person.name} (${person.region})`;
-          person.total_dm_shifts++; // Increment DM-specific shifts
-          person.weekday_shifts[dayOfWeek]++;
-        }
-      }
-
-      if (dayOfWeek === 6 || dayOfWeek === 0) {
-        for (let shift = 0; shift < ADDITIONAL_DM_SHIFTS_WEEKEND; shift++) {
-          const avoidRegions = Object.values(schedule[day])
-            .filter((shift) => shift)
-            .map((shift) => shift.split("(")[1].replace(")", "").trim());
-
-          const person = findAvailablePerson(day, "DM", avoidRegions);
-          if (person) {
-            schedule[day][
-              `DM${shift + 3}`
-            ] = `${person.name} (${person.region})`;
-            person.total_dm_shifts++;
-            person.weekday_shifts[dayOfWeek]++;
-          }
-        }
-      }
-    }
+// Helper function to assign a shift to a person
+function assignShift(schedule, day, role, person, dayOfWeekIndex) {
+  const availableShift = schedule[day][role].findIndex((s) => !s);
+  if (availableShift !== -1) {
+    schedule[day][role][availableShift] = `${person.name} (${person.region})`;
+    person[`total${role}Shifts`]++;
+    person.weekday_shifts[dayOfWeekIndex]++;
   }
+}
 
-  function resolveRegionConflicts(schedule) {
-    // Identify conflicts and attempt to resolve them
-    for (let day = 0; day < schedule.length; day++) {
-      const shifts = schedule[day];
-      const regionCount = {};
-
-      // Count the number of people from each region on this day
-      for (const role in shifts) {
-        if (shifts[role]) {
-          const region = shifts[role].split("(")[1].replace(")", "").trim();
-
-          if (!regionCount[region]) {
-            regionCount[region] = [];
-          }
-          regionCount[region].push(role);
-        }
-      }
-
-      // Identify conflicts (regions with more than one person)
-      for (const region in regionCount) {
-        while (regionCount[region].length > 1) {
-          const roleToSwap = regionCount[region].pop();
-
-          // Try to resolve by swapping with another day
-          for (let swapDay = 0; swapDay < schedule.length; swapDay++) {
-            if (swapDay === day) continue;
-
-            const swapShifts = schedule[swapDay];
-            const swapRegions = {};
-
-            // Create map of regions for swap day
-            for (const swapRole in swapShifts) {
-              if (swapShifts[swapRole]) {
-                const swapRegion = swapShifts[swapRole]
-                  .split("(")[1]
-                  .replace(")", "")
-                  .trim();
-
-                if (!swapRegions[swapRegion]) {
-                  swapRegions[swapRegion] = [];
-                }
-                swapRegions[swapRegion].push(swapRole);
-              }
-            }
-
-            // Find a role on swapDay that can be swapped without conflict
-            for (const swapRole in swapShifts) {
-              if (
-                swapRole.startsWith(roleToSwap.slice(0, 2)) && // Match TL or DM
-                (!swapRegions[region] ||
-                  !swapRegions[region].includes(swapRole))
-              ) {
-                // Perform the swap
-                const temp = shifts[roleToSwap];
-                shifts[roleToSwap] = swapShifts[swapRole];
-                swapShifts[swapRole] = temp;
-                break;
-              }
-            }
-          }
-        }
-      }
-    }
+// Main function to allocate all shifts across the entire schedule
+function allocateShifts(schedule, startDate, people) {
+  for (let day = 0; day < schedule.length; day++) {
+    allocateShiftsForDay(schedule, day, startDate, people);
   }
+}
 
-  allocateTlShifts(schedule);
-  allocateDmShifts(schedule);
-
-  // Resolve region conflicts
-  resolveRegionConflicts(schedule);
-
-  // Create schedule data with formatted dates
+// Function to display the generated schedule and summary
+function displayGeneratedSchedule(schedule, startDate, people, daysPerWeek) {
   const dateFormatter = new Intl.DateTimeFormat("en-US", {
     weekday: "long",
     day: "2-digit",
@@ -204,11 +166,31 @@ export function generateSchedule(data) {
     year: "numeric",
   });
 
-  // Group the schedule by month and ensure each week starts on Monday
   const monthFormatter = new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
   });
+
+  const scheduleDataByMonth = groupScheduleByMonth(
+    schedule,
+    startDate,
+    dateFormatter,
+    monthFormatter
+  );
+
+  const summaryData = createSummaryData(people);
+
+  displayTable("summary-table", summaryData);
+  renderMonthlySchedule(scheduleDataByMonth, daysPerWeek);
+}
+
+// Function to group the schedule by month
+function groupScheduleByMonth(
+  schedule,
+  startDate,
+  dateFormatter,
+  monthFormatter
+) {
   const scheduleDataByMonth = {};
 
   schedule.forEach((shifts, day) => {
@@ -217,15 +199,12 @@ export function generateSchedule(data) {
     const formattedDate = dateFormatter.format(currentDate);
     const monthKey = monthFormatter.format(currentDate);
 
-    const entry = {
-      Day: formattedDate,
-      "TL Shift 1": shifts["TL1"],
-      "TL Shift 2": shifts["TL2"],
-      "DM Shift 1": shifts["DM1"] || "",
-      "DM Shift 2": shifts["DM2"] || "",
-      "DM Shift 3": shifts["DM3"] || "",
-      "DM Shift 4": shifts["DM4"] || "",
-    };
+    const entry = { Day: formattedDate };
+    ["DM", "TL"].forEach((role) => {
+      shifts[role].forEach((shift, index) => {
+        entry[`${role} Shift ${index + 1}`] = shift || "";
+      });
+    });
 
     if (!scheduleDataByMonth[monthKey]) {
       scheduleDataByMonth[monthKey] = [];
@@ -233,14 +212,17 @@ export function generateSchedule(data) {
     scheduleDataByMonth[monthKey].push(entry);
   });
 
+  return scheduleDataByMonth;
+}
+
+// Function to create summary data for display
+function createSummaryData(people) {
   const summaryData = people.map((person) => ({
     Name: person.name,
     Region: person.region,
-    "Can Do TL": person.can_do_tl ? "Y" : "N",
-    "Can Do DM": person.can_do_dm ? "Y" : "N",
-    "Total TL Shifts": person.total_tl_shifts,
-    "Total DM Shifts": person.total_dm_shifts,
-    "Total Shifts": person.total_tl_shifts + person.total_dm_shifts,
+    "Total DM Shifts": person.totalDMShifts,
+    "Total TL Shifts": person.totalTLShifts,
+    "Total Shifts": person.totalDMShifts + person.totalTLShifts,
     "Monday Shifts": person.weekday_shifts[1],
     "Tuesday Shifts": person.weekday_shifts[2],
     "Wednesday Shifts": person.weekday_shifts[3],
@@ -259,17 +241,49 @@ export function generateSchedule(data) {
     return 0;
   });
 
-  // Display the summary table
-  displayTable("summary-table", summaryData);
+  return summaryData;
+}
 
-  // Create monthly schedule sections with week display
+// Function to render the monthly schedule with week display
+function renderMonthlySchedule(scheduleDataByMonth, daysPerWeek) {
   const scheduleContainer = document.getElementById("schedule-table");
   scheduleContainer.innerHTML = "";
 
-  let monthKeys = Object.keys(scheduleDataByMonth);
+  const monthKeys = Object.keys(scheduleDataByMonth);
   let currentMonthIndex = 0;
 
-  // Create month selection dropdown
+  const monthSelect = createMonthSelect(monthKeys, currentMonthIndex);
+  monthSelect.onchange = () => {
+    currentMonthIndex = parseInt(monthSelect.value, 10);
+    renderMonth(
+      scheduleContainer,
+      monthKeys,
+      scheduleDataByMonth,
+      currentMonthIndex,
+      daysPerWeek
+    );
+  };
+
+  renderMonth(
+    scheduleContainer,
+    monthKeys,
+    scheduleDataByMonth,
+    currentMonthIndex,
+    daysPerWeek
+  );
+
+  // Add month navigation controls
+  addMonthNavigationControls(
+    scheduleContainer,
+    monthKeys,
+    currentMonthIndex,
+    monthSelect,
+    daysPerWeek
+  );
+}
+
+// Function to create the month select dropdown
+function createMonthSelect(monthKeys, currentMonthIndex) {
   const monthSelect = document.createElement("select");
   monthSelect.classList.add("month-select");
 
@@ -280,83 +294,80 @@ export function generateSchedule(data) {
     monthSelect.appendChild(option);
   });
 
-  monthSelect.onchange = () => {
-    currentMonthIndex = parseInt(monthSelect.value, 10);
-    renderMonth(currentMonthIndex);
+  return monthSelect;
+}
+
+// Function to render the schedule for a specific month
+function renderMonth(
+  scheduleContainer,
+  monthKeys,
+  scheduleDataByMonth,
+  monthIndex,
+  daysPerWeek
+) {
+  scheduleContainer.innerHTML = "";
+  const monthKey = monthKeys[monthIndex];
+  const monthData = scheduleDataByMonth[monthKey];
+
+  const monthSection = document.createElement("div");
+  monthSection.classList.add("month-section");
+
+  const monthTitle = document.createElement("h3");
+  monthTitle.textContent = monthKey;
+  monthSection.appendChild(monthTitle);
+
+  const paginationContainer = document.createElement("div");
+  paginationContainer.classList.add("pagination-container");
+  monthSection.appendChild(paginationContainer);
+
+  scheduleContainer.appendChild(monthSection);
+
+  // Display weeks within the month
+  displayWeeks(monthData, paginationContainer, daysPerWeek);
+}
+
+// Function to add month navigation controls
+function addMonthNavigationControls(
+  scheduleContainer,
+  monthKeys,
+  currentMonthIndex,
+  monthSelect,
+  daysPerWeek
+) {
+  const monthControls = document.createElement("div");
+  monthControls.classList.add("month-controls");
+  const prevMonthButton = document.createElement("button");
+  prevMonthButton.textContent = "Previous Month";
+  prevMonthButton.disabled = currentMonthIndex === 0;
+  prevMonthButton.onclick = () => {
+    currentMonthIndex = Math.max(0, currentMonthIndex - 1);
+    monthSelect.value = currentMonthIndex;
+    renderMonth(
+      scheduleContainer,
+      monthKeys,
+      scheduleDataByMonth,
+      currentMonthIndex,
+      daysPerWeek
+    );
+  };
+  const nextMonthButton = document.createElement("button");
+  nextMonthButton.textContent = "Next Month";
+  nextMonthButton.disabled = currentMonthIndex === monthKeys.length - 1;
+  nextMonthButton.onclick = () => {
+    currentMonthIndex = Math.min(monthKeys.length - 1, currentMonthIndex + 1);
+    monthSelect.value = currentMonthIndex;
+    renderMonth(
+      scheduleContainer,
+      monthKeys,
+      scheduleDataByMonth,
+      currentMonthIndex,
+      daysPerWeek
+    );
   };
 
-  function renderMonth(monthIndex) {
-    scheduleContainer.innerHTML = "";
-    const monthKey = monthKeys[monthIndex];
-    const monthData = scheduleDataByMonth[monthKey];
+  monthControls.appendChild(prevMonthButton);
+  monthControls.appendChild(nextMonthButton);
+  monthControls.appendChild(monthSelect);
 
-    const monthSection = document.createElement("div");
-    monthSection.classList.add("month-section");
-
-    const monthTitle = document.createElement("h3");
-    monthTitle.textContent = monthKey;
-    monthSection.appendChild(monthTitle);
-
-    const paginationContainer = document.createElement("div");
-    paginationContainer.classList.add("pagination-container");
-    monthSection.appendChild(paginationContainer);
-
-    scheduleContainer.appendChild(monthSection);
-
-    // Display weeks within the month
-    displayWeeks(monthData, paginationContainer, DAYS_PER_WEEK);
-
-    // Add month navigation controls
-    const monthControls = document.createElement("div");
-    monthControls.classList.add("month-controls");
-
-    const prevMonthButton = document.createElement("button");
-    prevMonthButton.textContent = "Previous Month";
-    prevMonthButton.disabled = monthIndex === 0;
-    prevMonthButton.onclick = () => {
-      currentMonthIndex = Math.max(0, currentMonthIndex - 1);
-      monthSelect.value = currentMonthIndex;
-      renderMonth(currentMonthIndex);
-    };
-
-    const nextMonthButton = document.createElement("button");
-    nextMonthButton.textContent = "Next Month";
-    nextMonthButton.disabled = monthIndex === monthKeys.length - 1;
-    nextMonthButton.onclick = () => {
-      currentMonthIndex = Math.min(monthKeys.length - 1, currentMonthIndex + 1);
-      monthSelect.value = currentMonthIndex;
-      renderMonth(currentMonthIndex);
-    };
-
-    monthControls.appendChild(prevMonthButton);
-    monthControls.appendChild(nextMonthButton);
-    monthControls.appendChild(monthSelect);
-
-    scheduleContainer.appendChild(monthControls);
-  }
-
-  renderMonth(currentMonthIndex);
-
-  // Create download button
-  const downloadBtn = document.createElement("button");
-  downloadBtn.textContent = "Download Schedule";
-  downloadBtn.onclick = function () {
-    const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.json_to_sheet(schedule);
-    XLSX.utils.book_append_sheet(wb, ws1, "Schedule");
-
-    const ws2 = XLSX.utils.json_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, ws2, "Summary");
-
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], { type: "application/octet-stream" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "schedule.xlsx";
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  document.getElementById("results").appendChild(downloadBtn);
+  scheduleContainer.appendChild(monthControls);
 }
